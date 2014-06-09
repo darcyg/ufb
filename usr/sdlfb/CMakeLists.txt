@@ -1,0 +1,3 @@
+ADD_EXECUTABLE( sdlfb sdlfb.c )
+TARGET_LINK_LIBRARIES( sdlfb ufb ${SDL2_LIBRARIES} )
+
