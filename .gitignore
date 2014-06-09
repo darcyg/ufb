@@ -1,0 +1,11 @@
+build/*
+module/.tmp_versions
+module/*.cmd
+module/Module.symvers
+module/modules.order
+module/*.ko
+module/*.mod.c
+module/*.mod.o
+module/*.o
+module/ufb_test
+
