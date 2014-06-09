@@ -1,10 +1,12 @@
 #include "ufb.h"
 
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -17,7 +19,22 @@ struct ufb_context {
 	int fd;
 };
 
+#define UFB_IOCTL_ALLOC_VMEM (_IOW('U',0,uint32_t*))
+
 #define DEVICE_FILENAME ("/dev/ufb")
+
+static ufb_err_t _ufb_alloc_vmem(ufb_context_t *context)
+{
+	int ret;
+
+	ret = ioctl(context->fd, UFB_IOCTL_ALLOC_VMEM, &context->vmem_size);
+
+	if( -1 == ret ) {
+		return UFB_ERR_ALLOC_VMEM;
+	}
+
+	return UFB_OK;
+}
 
 static ufb_err_t _ufb_map_vmem(ufb_context_t *context)
 {
@@ -61,6 +78,10 @@ ufb_err_t ufb_init(ufb_context_t **context_ptr, int width, int height,
 	if( -1 == context->fd ) {
 		err = UFB_ERR_OPENING_DEVICE;
 		goto error_free;
+	}
+
+	if( UFB_OK != (err = _ufb_alloc_vmem(context)) ) {
+		goto error_close;
 	}
 
 	if( UFB_OK != (err = _ufb_map_vmem(context)) ) {

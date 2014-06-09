@@ -1,12 +1,13 @@
-#include <stdio.h>
-#include <unistd.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <stdlib.h>
 
-#define NPAGES 2560
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 /* this is a test program that opens the mmap_drv.
    It reads out values of the kmalloc() and vmalloc()
@@ -23,13 +24,14 @@
      'mknod node c 254 0'
 */
 
+#define UFB_IOCTL_ALLOC_VMEM (_IOW('U',0,uint32_t*))
+
 int main(int argc, char **argv)
 {
 	int fd;
 	unsigned int *vadr;
 	char *device_filename;
-
-	int len = NPAGES * getpagesize();
+	uint32_t vmem_size = 2 * 1024 * 1024;
 
 	if( argc != 2 ) {
 		fprintf(stderr, "Usage:  %s DEVICE_FILE\n", argv[0]);
@@ -40,22 +42,20 @@ int main(int argc, char **argv)
 
 	if( (fd = open(device_filename, O_RDWR|O_SYNC)) < 0 ) {
 		perror("open");
-		return -1;
+		return 1;
 	}
 
-	vadr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	if( -1 == ioctl(fd, UFB_IOCTL_ALLOC_VMEM, &vmem_size) ) {
+		perror("alloc_vmem");
+		return 1;
+	}
+
+	vadr = mmap(0, vmem_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if( vadr == MAP_FAILED ) {
 		perror("mmap");
-		return -1;
+		return 1;
 	}
-
-	//if( (vadr[0]!=0xaffe0000) || (vadr[1]!=0xbeef0000)
-	//    || (vadr[len/sizeof(int)-2]!=(0xaffe0000+len/sizeof(int)-2))
-	//    || (vadr[len/sizeof(int)-1]!=(0xbeef0000+len/sizeof(int)-2)) ) {
-	//	printf("0x%x 0x%x\n", vadr[0], vadr[1]);
-	//	printf("0x%x 0x%x\n", vadr[len/sizeof(int)-2], vadr[len/sizeof(int)-1]);
-	//}
 
 	close(fd);
 

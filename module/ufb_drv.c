@@ -1,3 +1,4 @@
+#include <asm/uaccess.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -11,17 +12,15 @@
 
 #define DEVICE_NAME "ufb"
 
-// internal data
-// length of the two memory areas
-#define VMEM_SIZE (10 * 1024 * 1024)
-#define NPAGES    (VMEM_SIZE / PAGE_SIZE)
-
 static int ufb_device_open(struct inode *inode, struct file *file);
 static int ufb_device_release(struct inode *inode, struct file *file);
+static long ufb_device_unlocked_ioctl(struct file *file, unsigned int cmd, 
+                                      unsigned long arg);
 static int ufb_device_mmap(struct file *filp, struct vm_area_struct *vma);
 
 struct ufb_dev {
 	int *vmem;
+	size_t vmem_size;
 };
 
 static struct file_operations ufb_device_operations = {
@@ -30,6 +29,7 @@ static struct file_operations ufb_device_operations = {
 	.open = ufb_device_open,
 	.release = ufb_device_release,
 
+	.unlocked_ioctl = ufb_device_unlocked_ioctl,
 	.mmap = ufb_device_mmap,
 };
 
@@ -43,7 +43,6 @@ static int ufb_device_open(struct inode *inode, struct file *file)
 {
 	struct ufb_dev *dev;
 	int err = 0;
-	int i;
 
 	printk(KERN_INFO "ufb:  ufb_device_open( inode=%p, file=%p )\n", inode, file );
 
@@ -53,29 +52,8 @@ static int ufb_device_open(struct inode *inode, struct file *file)
 		goto out;
 	}
 
-	/* allocate a memory area with vmalloc. */
-	if ((dev->vmem = (int *)vmalloc(VMEM_SIZE)) == NULL) {
-		err = -ENOMEM;
-		goto out_kfree;
-	}
-
-	/* mark the pages reserved */
-	for (i = 0; i < VMEM_SIZE; i+= PAGE_SIZE) {
-		SetPageReserved(vmalloc_to_page((void *)(((unsigned long)dev->vmem) + i)));
-	}
-
-	/* store a pattern in the memory - the test application will check for it */
-	for (i = 0; i < (VMEM_SIZE / sizeof(int)); i += 2) {
-		dev->vmem[i + 0] = (0xaffe << 16) + i;
-		dev->vmem[i + 1] = (0xbeef << 16) + i;
-	}
-
 	file->private_data = dev;
 
-	return err;
-
-out_kfree:
-	kfree(dev);
 out:
 	return err;
 }
@@ -90,7 +68,7 @@ static int ufb_device_release(struct inode *inode, struct file *file)
 	dev = file->private_data;
 
 	/* unreserve the pages */
-	for (i = 0; i < VMEM_SIZE; i+= PAGE_SIZE) {
+	for (i = 0; i < dev->vmem_size; i+= PAGE_SIZE) {
 		ClearPageReserved(vmalloc_to_page((void *)(((unsigned long)dev->vmem) + i)));
 	}
 
@@ -99,6 +77,72 @@ static int ufb_device_release(struct inode *inode, struct file *file)
 	kfree(dev);
 
 	return 0;
+}
+
+static int _ufb_alloc_vmem(struct ufb_dev *dev, size_t vmem_size)
+{
+	int err = 0;
+	int i;
+
+	dev->vmem_size = vmem_size;
+
+	/* allocate a memory area with vmalloc. */
+	if ((dev->vmem = (int *)vmalloc(dev->vmem_size)) == NULL) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	/* mark the pages reserved */
+	for (i = 0; i < dev->vmem_size; i+= PAGE_SIZE) {
+		SetPageReserved(vmalloc_to_page((void *)(((unsigned long)dev->vmem) + i)));
+	}
+
+	/* store a pattern in the memory - the test application will check for it */
+	for (i = 0; i < (dev->vmem_size / sizeof(int)); i += 2) {
+		dev->vmem[i + 0] = (0xaffe << 16) + i;
+		dev->vmem[i + 1] = (0xbeef << 16) + i;
+	}
+
+out:
+	return err;
+}
+
+static long ufb_device_unlocked_ioctl(struct file *file, unsigned int cmd, 
+                                 unsigned long arg)
+{
+	struct ufb_dev *dev;
+	long err;
+	int nr;
+
+	printk(KERN_INFO "ufb:  ufb_device_unlocked_ioctl( file=%p, cmd=%x, arg=0x%lx )\n",
+	       file, cmd, arg);
+
+	nr = _IOC_NR(cmd);
+	dev = file->private_data;
+
+	err = -EINVAL;
+	switch(nr) {
+		case 0: {
+			u32 new_vmem_size;
+
+			copy_from_user(&new_vmem_size, (void*)arg, sizeof(new_vmem_size));
+
+			printk(KERN_INFO "ufb:  alloc_vmem:  0x%x\n", new_vmem_size );
+
+			dev->vmem_size = new_vmem_size;
+
+			err = _ufb_alloc_vmem(dev, new_vmem_size);
+		}
+		break;
+
+		default: {
+			printk(KERN_INFO "ufb:  unknown nr:  %d\n", nr);
+			err = -EINVAL;
+		}
+		break;
+	}
+
+	return err;
 }
 
 static int ufb_device_mmap(struct file *file, struct vm_area_struct *vma)
@@ -113,15 +157,17 @@ static int ufb_device_mmap(struct file *file, struct vm_area_struct *vma)
 	printk(KERN_INFO "ufb:  ufb_device_mmap( file=%p, vma=%p )\n", file, vma );
 
 	dev = file->private_data;
+
+	if( dev->vmem == NULL ) {
+		return -EINVAL;
+	}
+
 	vmalloc_area_ptr = (char*)dev->vmem;
 
-	/* check length - do not allow larger mappings than the number of
-	   pages allocated */
-	if (length > VMEM_SIZE) {
+	if (length > dev->vmem_size) {
 		return -EIO;
 	}
 
-	/* loop over all pages, map it page individually */
 	while (length > 0) {
 		pfn = vmalloc_to_pfn(vmalloc_area_ptr);
 		if ((ret = remap_pfn_range(vma, start, pfn, PAGE_SIZE,
@@ -132,6 +178,7 @@ static int ufb_device_mmap(struct file *file, struct vm_area_struct *vma)
 		vmalloc_area_ptr += PAGE_SIZE;
 		length -= PAGE_SIZE;
 	}
+
 	return 0;
 }
 
