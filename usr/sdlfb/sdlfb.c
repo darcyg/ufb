@@ -6,7 +6,7 @@
 
 #include "ufb.h"
 
-#define WIDTH  (854)
+#define WIDTH  (640)
 #define HEIGHT (480)
 
 #define SCREEN_SIZE (WIDTH * HEIGHT * sizeof(uint32_t))
