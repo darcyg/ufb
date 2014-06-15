@@ -1,3 +1,5 @@
+#include "ufb_drv.h"
+
 #include <asm/uaccess.h>
 #include <linux/fs.h>
 #include <linux/init.h>
@@ -17,11 +19,6 @@ static int ufb_device_release(struct inode *inode, struct file *file);
 static long ufb_device_unlocked_ioctl(struct file *file, unsigned int cmd, 
                                       unsigned long arg);
 static int ufb_device_mmap(struct file *filp, struct vm_area_struct *vma);
-
-struct ufb_dev {
-	int *vmem;
-	size_t vmem_size;
-};
 
 static struct file_operations ufb_device_operations = {
 	.owner = THIS_MODULE,
@@ -86,21 +83,15 @@ static int _ufb_alloc_vmem(struct ufb_dev *dev, size_t vmem_size)
 
 	dev->vmem_size = vmem_size;
 
-	/* allocate a memory area with vmalloc. */
 	if ((dev->vmem = (int *)vmalloc(dev->vmem_size)) == NULL) {
 		err = -ENOMEM;
 		goto out;
 	}
 
-	/* mark the pages reserved */
+	memset(dev->vmem, 0, dev->vmem_size);
+
 	for (i = 0; i < dev->vmem_size; i+= PAGE_SIZE) {
 		SetPageReserved(vmalloc_to_page((void *)(((unsigned long)dev->vmem) + i)));
-	}
-
-	/* store a pattern in the memory - the test application will check for it */
-	for (i = 0; i < (dev->vmem_size / sizeof(int)); i += 2) {
-		dev->vmem[i + 0] = (0xaffe << 16) + i;
-		dev->vmem[i + 1] = (0xbeef << 16) + i;
 	}
 
 out:
