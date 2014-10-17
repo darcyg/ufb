@@ -13,6 +13,7 @@ typedef enum {
 	UFB_ERR_OPENING_DEVICE,
 	UFB_ERR_ALLOC_VMEM,
 	UFB_ERR_MMAP,
+	UFB_ERR_CREATE_FB,
 } ufb_err_t;
 
 extern ufb_err_t ufb_init(ufb_context_t **context, int width, int height, 

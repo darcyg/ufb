@@ -22,7 +22,7 @@ all:	$(MODULENAME)_test
 all:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
 else
-  ufb-y := ufb_drv.o
+  ufb-y := ufb_drv.o ufb_fb.o
   obj-m := $(MODULENAME).o
 endif
 

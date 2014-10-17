@@ -20,6 +20,7 @@ struct ufb_context {
 };
 
 #define UFB_IOCTL_ALLOC_VMEM (_IOW('U',0,uint32_t*))
+#define UFB_IOCTL_CREATE_FB  (_IO('U',1))
 
 #define DEVICE_FILENAME ("/dev/ufb")
 
@@ -45,6 +46,19 @@ static ufb_err_t _ufb_map_vmem(ufb_context_t *context)
 		context->vmem = NULL;
 		perror("UFB");
 		return UFB_ERR_MMAP;
+	}
+
+	return UFB_OK;
+}
+
+static ufb_err_t _ufb_create_fb(ufb_context_t *context)
+{
+	int ret;
+
+	ret = ioctl(context->fd, UFB_IOCTL_CREATE_FB);
+
+	if( -1 == ret ) {
+		return UFB_ERR_CREATE_FB;
 	}
 
 	return UFB_OK;
@@ -85,6 +99,10 @@ ufb_err_t ufb_init(ufb_context_t **context_ptr, int width, int height,
 	}
 
 	if( UFB_OK != (err = _ufb_map_vmem(context)) ) {
+		goto error_close;
+	}
+
+	if( UFB_OK != (err = _ufb_create_fb(context)) ) {
 		goto error_close;
 	}
 

@@ -49,6 +49,8 @@ static int ufb_device_open(struct inode *inode, struct file *file)
 		goto out;
 	}
 
+	dev->dev = ufb_miscdevice.this_device;
+
 	file->private_data = dev;
 
 out:
@@ -63,6 +65,8 @@ static int ufb_device_release(struct inode *inode, struct file *file)
 	printk(KERN_INFO "ufb:  ufb_device_release( inode=%p, file=%p )\n", inode, file );
 
 	dev = file->private_data;
+
+	ufb_fb_deinit(dev);
 
 	/* unreserve the pages */
 	for (i = 0; i < dev->vmem_size; i+= PAGE_SIZE) {
@@ -123,6 +127,13 @@ static long ufb_device_unlocked_ioctl(struct file *file, unsigned int cmd,
 			dev->vmem_size = new_vmem_size;
 
 			err = _ufb_alloc_vmem(dev, new_vmem_size);
+		}
+		break;
+
+		case 1: {
+			printk(KERN_INFO "ufb:  create_fb\n");
+
+			err = ufb_fb_init(dev);
 		}
 		break;
 
