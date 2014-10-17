@@ -37,11 +37,12 @@ void writeTexture( void )
 int main()
 {
 	int iterations = 0;
+	ufb_err_t status;
 
-	if( UFB_OK != ufb_init(&ufb, WIDTH, HEIGHT, VMEM_SIZE) ) {
+	if( UFB_OK != (status = ufb_init(&ufb, WIDTH, HEIGHT, VMEM_SIZE)) ) {
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
-		                         "SDLFB ERROR",
-		                         "Error initializing device",
+		                         "Error Initializing Device",
+		                         ufb_strerror(status),
 		                         NULL);
 		return 1;
 	}
@@ -71,6 +72,8 @@ int main()
 		//setData( iterations );
 
 		writeTexture();
+
+		ufb_signal_vblank(ufb);
 
 		iterations++;
 	}

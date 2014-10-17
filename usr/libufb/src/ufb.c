@@ -19,8 +19,9 @@ struct ufb_context {
 	int fd;
 };
 
-#define UFB_IOCTL_ALLOC_VMEM (_IOW('U',0,uint32_t*))
-#define UFB_IOCTL_CREATE_FB  (_IO('U',1))
+#define UFB_IOCTL_ALLOC_VMEM    (_IOW('U',0,uint32_t*))
+#define UFB_IOCTL_CREATE_FB     (_IO('U',1))
+#define UFB_IOCTL_SIGNAL_VBLANK (_IO('U',2))
 
 #define DEVICE_FILENAME ("/dev/ufb")
 
@@ -123,6 +124,17 @@ void* ufb_get_vmem(ufb_context_t *context)
 	return context->vmem;
 }
 
+ufb_err_t ufb_signal_vblank(ufb_context_t *context)
+{
+	if( !context ) {
+		return UFB_ERR_INVALID_PARAM;
+	}
+
+	ioctl(context->fd, UFB_IOCTL_SIGNAL_VBLANK);
+
+	return UFB_OK;
+}
+
 void ufb_free(ufb_context_t *context)
 {
 	if( context ) {
@@ -130,4 +142,19 @@ void ufb_free(ufb_context_t *context)
 		free(context);
 	}
 }
+
+const char* ufb_strerror(ufb_err_t err)
+{
+	switch(err) {
+		case UFB_OK:                 return "Success";
+		case UFB_ERR_INVALID_PARAM:  return "Invalid Parameter";
+		case UFB_ERR_NO_MEM:         return "Out of Memory";
+		case UFB_ERR_OPENING_DEVICE: return "Could Not Open Device";
+		case UFB_ERR_ALLOC_VMEM:     return "Could Not Allocate Vmem";
+		case UFB_ERR_MMAP:           return "Could Not mmap Vmem";
+		case UFB_ERR_CREATE_FB:      return "CREATE_FB ioctl Failed";
+		default:                     return "Unknown Error";
+	}
+}
+
 

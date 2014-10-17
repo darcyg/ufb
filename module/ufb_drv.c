@@ -51,6 +51,8 @@ static int ufb_device_open(struct inode *inode, struct file *file)
 
 	dev->dev = ufb_miscdevice.this_device;
 
+	init_waitqueue_head(&dev->vblank_wait);
+
 	file->private_data = dev;
 
 out:
@@ -102,15 +104,21 @@ out:
 	return err;
 }
 
+static int _ufb_signal_vblank(struct ufb_dev *dev)
+{
+	dev->vblank_count++;
+
+	wake_up_interruptible(&dev->vblank_wait);
+
+	return 0;
+}
+
 static long ufb_device_unlocked_ioctl(struct file *file, unsigned int cmd, 
                                  unsigned long arg)
 {
 	struct ufb_dev *dev;
 	long err;
 	int nr;
-
-	printk(KERN_INFO "ufb:  ufb_device_unlocked_ioctl( file=%p, cmd=%x, arg=0x%lx )\n",
-	       file, cmd, arg);
 
 	nr = _IOC_NR(cmd);
 	dev = file->private_data;
@@ -134,6 +142,11 @@ static long ufb_device_unlocked_ioctl(struct file *file, unsigned int cmd,
 			printk(KERN_INFO "ufb:  create_fb\n");
 
 			err = ufb_fb_init(dev);
+		}
+		break;
+
+		case 2: {
+			err = _ufb_signal_vblank(dev);
 		}
 		break;
 

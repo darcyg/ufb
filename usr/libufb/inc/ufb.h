@@ -21,7 +21,11 @@ extern ufb_err_t ufb_init(ufb_context_t **context, int width, int height,
 
 extern void* ufb_get_vmem(ufb_context_t *context);
 
+extern ufb_err_t ufb_signal_vblank(ufb_context_t *context);
+
 extern void ufb_free(ufb_context_t *context);
+
+extern const char* ufb_strerror(ufb_err_t);
 
 #endif //UFB_H
 

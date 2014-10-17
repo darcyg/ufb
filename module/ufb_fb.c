@@ -35,6 +35,7 @@ static int ufb_fb_pan_display(struct fb_var_screeninfo *var,
                               struct fb_info *info);
 static int ufb_fb_mmap(struct fb_info *info,
                        struct vm_area_struct *vma);
+static int ufb_fb_ioctl(struct fb_info *info, u_int cmd, u_long arg);
 
 static struct fb_ops ufb_ops = {
 	.fb_read        = fb_sys_read,
@@ -47,6 +48,7 @@ static struct fb_ops ufb_ops = {
 	.fb_copyarea    = sys_copyarea,
 	.fb_imageblit   = sys_imageblit,
 	.fb_mmap        = ufb_fb_mmap,
+	.fb_ioctl       = ufb_fb_ioctl,
 };
 
 /*
@@ -354,6 +356,26 @@ static int ufb_fb_mmap(struct fb_info *info,
 
 	return 0;
 
+}
+
+static int ufb_fb_ioctl(struct fb_info *info, u_int cmd, u_long arg)
+{
+	struct ufb_dev *dev = info->par;
+	unsigned int count;
+	int ret;
+
+	count = dev->vblank_count;
+	ret = wait_event_interruptible_timeout(dev->vblank_wait, count != dev->vblank_count, HZ/10);
+
+	if (ret < 0) {
+		return ret;
+	}
+	else if(ret == 0) {
+		return -ETIMEDOUT;
+	}
+	else {
+		return 0;
+	}
 }
 
 int ufb_fb_init(struct ufb_dev *dev)
